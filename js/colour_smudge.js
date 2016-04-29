@@ -4,11 +4,13 @@ var headerElement;
 var headerCanvas, bufferCanvas;
 var headerContext;
 var canvasWidth, canvasHeight;
-var borderWidth = 1;
-var ctx;
-var bCtx;
+var ctx; // main context
+var bCtx; // bufferContext
 var logo;
 var texture;
+
+
+var canvasScale = 1;
 
 $(document).ready(function(){
 	console.log("Script ready");
@@ -21,59 +23,36 @@ $(document).ready(function(){
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
 	texture = $(".data-image")[0];
-	resetCanvasDimensionsDouble();
-	noise.seed(Math.random());
+	resetCanvasDimensions(2);
+	redraw();
 	startAnimating(frameRate);
 });
 
-var canvasScale = 1;
-var doubled = false;
 
-function resetCanvasDimensionsSingle(){
-	canvasScale = 1;
-	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	var cvs = headerCanvas[0];
-	var height = headerElement.height();
-	var width = headerElement.width();
-	cvs.width = width;
-	cvs.height = height;
-	cvs.style.width = width+"px";
-	cvs.style.height = height+"px";
-	canvasWidth = headerCanvas.width();
-	canvasHeight = headerCanvas.height();
-	// buffer
-	bCtx.setTransform(1, 0, 0, 1, 0, 0);
-	var bCvs = bufferCanvas[0];
-	bCvs.width = width;
-	bCvs.height = height;
-	bCvs.style.width = width+"px";
-	bCvs.style.height = height+"px";
-	doubled = false;
+function resetCanvasDimensions(scale){
+	resetCanvasScale(headerCanvas[0], ctx, scale);
+	resetCanvasScale(bufferCanvas[0], bCtx, scale);
 }
 
-function resetCanvasDimensionsDouble(){
-	canvasScale = 2;
-	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	var cvs = headerCanvas[0];
+function resetCanvasScale(canvas, context, scale){
+	canvasScale = scale;
+	context.setTransform(1, 0, 0, 1, 0, 0);
 	var height = headerElement.height();
 	var width = headerElement.width();
-	cvs.width = width*2;
-	cvs.height = height*2;
-	cvs.style.width = width+"px";
-	cvs.style.height = height+"px";
-	ctx.scale(2, 2);
+	canvas.width = width * scale;
+	canvas.height = height * scale;
+	canvas.style.width = width+"px";
+	canvas.style.height = height+"px";
 	canvasWidth = headerCanvas.width();
 	canvasHeight = headerCanvas.height();
-	// buffer
-	bCtx.setTransform(1, 0, 0, 1, 0, 0);
-	var bCvs = bufferCanvas[0];
-	bCvs.width = width*2;
-	bCvs.height = height*2;
-	bCvs.style.width = width+"px";
-	bCvs.style.height = height+"px";
-	bCtx.scale(2, 2);
-	doubled = true;
+	context.scale(scale, scale);
 }
+
+function atDoubleResolution(){
+	return canvasScale==2;
+}
+
+/////
 
 var frameRate = 60;
 var frameCount = 0;
@@ -110,49 +89,40 @@ function animate() {
     }
 }
 
-var livePoints = [];
+//////
 
-var pointsGathered = false;
+var livePoints = [];
 
 function gatherPoints(){
 	ctx.globalCompositeOperation = 'source-over';
-	ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+	clearCanvas(ctx);
 
-	// ctx.fillStyle = "white";
-	// ctx.fillRect(0, 0, canvasWidth*2, canvasHeight*2);
-
+	// Draw all the bits to inherit from
 	drawLogo();
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	var pixels = imageData.data;
-
-	var imageDataWidth = imageData.width;
-	var imageDataHeight = imageData.height;
-	var cX, cY;
 	var idx, nextIdx;
 	var pointFidelity = 1;
 	var onlyEdges = true;
-	for(var x = 0; x<imageDataWidth; x+=pointFidelity){
-		for(var y = 0; y<imageDataHeight-1; y+=pointFidelity){
-			idx = getArrayPosition(x, y, imageDataWidth);
-			nextIdx = getArrayPosition(x, y+1, imageDataWidth);
+	for(var x = 0; x<imageData.width; x+=pointFidelity){
+		for(var y = 0; y<imageData.height-1; y+=pointFidelity){
+			idx = getArrayPosition(x, y, imageData.width);
+			nextIdx = getArrayPosition(x, y+1, imageData.width);
 			if(onlyEdges){
+				// Require a clear pixel below
 				if(pixels[idx+3] > 0 && pixels[nextIdx+3] == 0){
 					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
 				}
 			}else{
+				// Take everything!
 				if(pixels[idx+3] > 0){
 					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
 				}
 			}
 		}
 	}
-	// ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-	// bCtx.fillStyle = "rgba(255, 255, 255, 1)";
-	// bCtx.fillRect(0, 0, canvasWidth, canvasHeight);
-	// drawLogo(bCtx);
-	console.log("livePoints: "+livePoints.length);
-
+	console.log("Gathered livePoints, total: "+livePoints.length);
 }
 
 // Call this one working within arrays
@@ -162,12 +132,12 @@ function getArrayPosition(x, y, w){
 }
 // Call this one from stuff like mouseX, mouseY
 function getArrayPositionFromOutside(x, y, w){
-	if(doubled)
+	if(atDoubleResolution())
 		return getArrayPositionDouble(x, y, w);
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
 	return (y * w + x)*4;
 }
-// This one will get called if is appropriate
+// PRIVATE - This one will get called if is appropriate
 function getArrayPositionDouble(x, y, w){
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
 	return (y * w * 2 + x * 2)*4;
@@ -175,56 +145,45 @@ function getArrayPositionDouble(x, y, w){
 
 function redraw(){
 	livePoints = [];
-	pointsGathered = false;
 	noise.seed(Math.random());
+
+	gatherPoints();
 }
+
+////
 
 
 function drawToHeaderCanvas(){
 
-	if(!pointsGathered){
-		gatherPoints();
-		pointsGathered = true;
-	}
-
-	// ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
-	// ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-
 	var bufferImage = bCtx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	var bufferData = bufferImage.data;
 	var bufferWidth = bufferImage.width;
-	// console.log("Width: "+bufferImage.width+", "+bufferImage.height+", mul: "+bufferImage.width*bufferImage.height+"len: "+bufferData.length);
 
-	// if(true){
-	// 	console.log(bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
-	// }
-
-
+	// Load o' controls.
 	// smaller = tighter correlation.
 	var noiseScale = 0.01;
 	var noiseRotation = 0.01;
 	var ageDecayRate = 0.00;
-	var horzScale = 0, horzPow = 1;
+	var horzScale = 1, horzPow = 1;
 	var vertScale = 5, vertPow = 2;
 	var hSign, vSign, vV, vH;
 	var colourRotation = 0.1;
-	var randomShiftHorz = 1, randomShiftVert = 0;
+	var randomShiftHorz = 0, randomShiftVert = 0;
 	var noiseOffset = 100;
 
-
-	// ctx.beginPath();
-	// ctx.moveTo(livePoints[0].x,livePoints[0].y);
 	var inv255 = 1.0/255.0;
 	var invLength = 1/livePoints.length;
+
 	var bufferValue;
 	var friendsDrawn = 0;
 	for(var k = 0; k<livePoints.length;k++){
 		if(!livePoints[k].alive)
 			continue;
+
+		// Calcs
+
 		bufferValue = bufferData[getArrayPositionFromOutside(livePoints[k].x, livePoints[k].y, bufferWidth)+3]*inv255;
 		
-
 		livePoints[k].age -= ageDecayRate;
 		livePoints[k].pX = livePoints[k].x;
 		livePoints[k].pY = livePoints[k].y;
@@ -241,19 +200,8 @@ function drawToHeaderCanvas(){
 
 		livePoints[k].x += vH;
 		livePoints[k].y += vV;
-		// livePoints[k].a -= Math.random()*0.02;
-		livePoints[k].a += Math.random()*colourRotation;
-		// ctx.fillStyle = "rgba(20, 50, 120, "+livePoints[k].a+")";
 
-
-		if(k>1 && k<livePoints.length-1){
-				var xc = (livePoints[k].x + livePoints[k + 1].x) / 2;
-				var yc = (livePoints[k].y + livePoints[k + 1].y) / 2;
-				
-				// ctx.quadraticCurveTo(livePoints[k].x, livePoints[k].y, xc, yc);
-		}
-
-		// ctx.fillRect(livePoints[k].x, livePoints[k].y, 1, 1);
+		///
 
 		// Draw to the buffer
 		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
@@ -264,16 +212,16 @@ function drawToHeaderCanvas(){
 		bCtx.fillStyle = "black";
 
 		// Draw to the main canvas
-		ctx.lineCap = "round";
-		ctx.lineWidth = 20*livePoints[k].vY;
+		// ctx.lineCap = "round";
+		ctx.lineWidth = 3;
 		// ctx.strokeStyle = "rgba("+(20+150.0*bufferValue)+", "+(80.0+80*(1-bufferValue))+", 150, 255)";
-		ctx.strokeStyle = "rgba(139, 100, 35, "+livePoints[k].vY*0.01+")";
+		ctx.strokeStyle = "rgba(50, 80, 50, "+0.5+")";
 		ctx.beginPath();
 		ctx.moveTo(livePoints[k].x,livePoints[k].y);
 		ctx.lineTo(livePoints[k].pX,livePoints[k].pY);
 		ctx.stroke();
 
-		// round up
+		// finish up
 
 		if(livePoints[k].y > canvasHeight){
 			livePoints[k].alive = false;
@@ -282,7 +230,6 @@ function drawToHeaderCanvas(){
 		livePoints[k].vX = livePoints[k].x - livePoints[k].pX;
 		livePoints[k].vY = livePoints[k].y - livePoints[k].pY;
 		friendsDrawn++;
-
 	}
 
 
@@ -301,6 +248,11 @@ function drawLogo(canvas){
 	canvas.translate(-x, -y);
 }
 
+function clearCanvas(canvas){
+	canvas = canvas || ctx;
+	canvas.clearRect(0, 0, canvasWidth, canvasHeight);
+}
+
 
 var mouseX, mouseY;
 window.addEventListener('mousemove', storeMousePos, false);
@@ -309,27 +261,6 @@ function storeMousePos(evt) {
     mouseY = evt.clientY;
 }
 
-
-var offscreen = 200;
-
-var stopRotationSpeed = 0.001;
-
-var stopArray = [
-	0,
-	0.40,
-	0.5,
-	0.60,
-	1
-]
-
-var colourArray = [
-	"rgba(111, 21, 108, 1)",
-	"rgba(0, 96, 27, 1)",
-	"rgba(66, 105, 195, 1)",
-	"rgba(61, 29, 83, 1)",
-	"rgba(86, 14, 51, 1)",
-	"rgba(253, 124, 0, 1)"
-]
 
 document.onkeypress = function(evt) {
     evt = evt || window.event;
