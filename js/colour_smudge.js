@@ -21,12 +21,38 @@ $(document).ready(function(){
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
 	texture = $(".data-image")[0];
-	resetCanvasDimensions();
-
+	resetCanvasDimensionsDouble();
+	noise.seed(Math.random());
 	startAnimating(frameRate);
 });
 
-function resetCanvasDimensions(){
+var canvasScale = 1;
+var doubled = false;
+
+function resetCanvasDimensionsSingle(){
+	canvasScale = 1;
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	var cvs = headerCanvas[0];
+	var height = headerElement.height();
+	var width = headerElement.width();
+	cvs.width = width;
+	cvs.height = height;
+	cvs.style.width = width+"px";
+	cvs.style.height = height+"px";
+	canvasWidth = headerCanvas.width();
+	canvasHeight = headerCanvas.height();
+	// buffer
+	bCtx.setTransform(1, 0, 0, 1, 0, 0);
+	var bCvs = bufferCanvas[0];
+	bCvs.width = width;
+	bCvs.height = height;
+	bCvs.style.width = width+"px";
+	bCvs.style.height = height+"px";
+	doubled = false;
+}
+
+function resetCanvasDimensionsDouble(){
+	canvasScale = 2;
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
 	var cvs = headerCanvas[0];
 	var height = headerElement.height();
@@ -46,6 +72,7 @@ function resetCanvasDimensions(){
 	bCvs.style.width = width+"px";
 	bCvs.style.height = height+"px";
 	bCtx.scale(2, 2);
+	doubled = true;
 }
 
 var frameRate = 60;
@@ -96,7 +123,7 @@ function gatherPoints(){
 
 	drawLogo();
 
-	var imageData = ctx.getImageData(0, 0, canvasWidth*2, canvasHeight*2);
+	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	var pixels = imageData.data;
 
 	var imageDataWidth = imageData.width;
@@ -111,32 +138,39 @@ function gatherPoints(){
 			nextIdx = getArrayPosition(x, y+1, imageDataWidth);
 			if(onlyEdges){
 				if(pixels[idx+3] > 0 && pixels[nextIdx+3] == 0){
-					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1});
+					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
 				}
 			}else{
 				if(pixels[idx+3] > 0){
-					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1});
+					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
 				}
 			}
-			// pixels[idx] = 255;
-			// pixels[idx+1] = 0;
-			// pixels[idx+2] = 0;
-			// pixels[idx+3] = 255;
 		}
 	}
 	// ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-	bCtx.fillStyle = "rgba(221, 150, 150, 1)";
-	bCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+	// bCtx.fillStyle = "rgba(255, 255, 255, 1)";
+	// bCtx.fillRect(0, 0, canvasWidth, canvasHeight);
 	// drawLogo(bCtx);
 	console.log("livePoints: "+livePoints.length);
 
 }
 
+// Call this one working within arrays
 function getArrayPosition(x, y, w){
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
-	// if(pointsGathered)
-	// 	console.log(x+", "+y);
 	return (y * w + x)*4;
+}
+// Call this one from stuff like mouseX, mouseY
+function getArrayPositionFromOutside(x, y, w){
+	if(doubled)
+		return getArrayPositionDouble(x, y, w);
+	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
+	return (y * w + x)*4;
+}
+// This one will get called if is appropriate
+function getArrayPositionDouble(x, y, w){
+	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
+	return (y * w * 2 + x * 2)*4;
 }
 
 function redraw(){
@@ -153,41 +187,42 @@ function drawToHeaderCanvas(){
 		pointsGathered = true;
 	}
 
+	// ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
+	// ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-	var bufferImage = bCtx.getImageData(0, 0, canvasWidth*2, canvasHeight*2);
+
+	var bufferImage = bCtx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	var bufferData = bufferImage.data;
 	var bufferWidth = bufferImage.width;
+	// console.log("Width: "+bufferImage.width+", "+bufferImage.height+", mul: "+bufferImage.width*bufferImage.height+"len: "+bufferData.length);
 
-	bCtx.fillStyle = "rgba(131, 150, 150, 1)";
-	bCtx.fillRect(0, 0, canvasWidth, canvasHeight);
-	bCtx.fillStyle = "rgba(255, 255, 150, 1)";
-	bCtx.fillRect(canvasHeight/2, 0, canvasWidth, canvasHeight);
-	if(mouseY > 0 && mouseY < canvasHeight && mouseX > 0 && mouseX < canvasWidth){
-		console.log(bufferData[getArrayPosition(mouseX, mouseY, bufferWidth)]);
-		bCtx.fillRect(mouseX, mouseY, 5, 5);
-	}
+	// if(true){
+	// 	console.log(bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
+	// }
 
 
 	// smaller = tighter correlation.
-	var noiseScale = 0.05;
+	var noiseScale = 0.01;
 	var noiseRotation = 0.01;
-	var ageDecayRate = 0.000;
-	var horzScale = 2, horzPow = 1;
+	var ageDecayRate = 0.00;
+	var horzScale = 0, horzPow = 1;
 	var vertScale = 5, vertPow = 2;
 	var hSign, vSign, vV, vH;
 	var colourRotation = 0.1;
-	var randomShiftHorz = 0, randomShiftVert = 0;
+	var randomShiftHorz = 1, randomShiftVert = 0;
 	var noiseOffset = 100;
 
 
 	// ctx.beginPath();
 	// ctx.moveTo(livePoints[0].x,livePoints[0].y);
-	var inv255 = 1.0/255;
-	var nsDecay = livePoints[0].age * noiseScale;
+	var inv255 = 1.0/255.0;
+	var invLength = 1/livePoints.length;
 	var bufferValue;
+	var friendsDrawn = 0;
 	for(var k = 0; k<livePoints.length;k++){
-
-		// bufferValue = (255-bufferData[getArrayPosition(livePoints[k].x, livePoints[k].y, canvasWidth)])/255;
+		if(!livePoints[k].alive)
+			continue;
+		bufferValue = bufferData[getArrayPositionFromOutside(livePoints[k].x, livePoints[k].y, bufferWidth)+3]*inv255;
 		
 
 		livePoints[k].age -= ageDecayRate;
@@ -195,8 +230,8 @@ function drawToHeaderCanvas(){
 		livePoints[k].pY = livePoints[k].y;
 		livePoints[k].x += (Math.random()-0.5)*randomShiftHorz;
 		livePoints[k].y += (Math.random()-0.5)*randomShiftVert;
-		var noiseHorz = ( noise.perlin3(livePoints[k].x*nsDecay-noiseOffset, livePoints[k].y*nsDecay-noiseOffset, frameCount*noiseRotation)); // -1 to 1
-		var noiseVert = ( noise.perlin3(livePoints[k].x*nsDecay, livePoints[k].y*nsDecay, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
+		var noiseHorz = ( noise.perlin3(livePoints[k].x*noiseScale-noiseOffset, livePoints[k].y*noiseScale-noiseOffset, frameCount*noiseRotation)); // -1 to 1
+		var noiseVert = ( noise.perlin3(livePoints[k].x*noiseScale, livePoints[k].y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
 
 		hSign = Math.sign(noiseHorz);
 		vSign = Math.sign(noiseVert);
@@ -221,23 +256,32 @@ function drawToHeaderCanvas(){
 		// ctx.fillRect(livePoints[k].x, livePoints[k].y, 1, 1);
 
 		// Draw to the buffer
-		// bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		// bCtx.beginPath();
-		// bCtx.moveTo(livePoints[k].x,livePoints[k].y);
-		// bCtx.lineTo(livePoints[k].pX,livePoints[k].pY);
-		// bCtx.stroke();
-		// bCtx.fillStyle = "black";
+		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		bCtx.beginPath();
+		bCtx.moveTo(livePoints[k].x,livePoints[k].y);
+		bCtx.lineTo(livePoints[k].pX,livePoints[k].pY);
+		bCtx.stroke();
+		bCtx.fillStyle = "black";
 
-		bCtx.fillStyle = "rgba(255, 150, 150, 1)";
-		bCtx.fillRect(livePoints[k].x, livePoints[k].y, 10, 10);
-
-		// bCtx.fillRect(0, 0, canvasWidth, canvasHeight);
 		// Draw to the main canvas
-		// ctx.strokeStyle = "rgba(30, 255, 10, "+bufferValue+")";
-		// ctx.beginPath();
-		// ctx.moveTo(livePoints[k].x,livePoints[k].y);
-		// ctx.lineTo(livePoints[k].pX,livePoints[k].pY);
-		// ctx.stroke();
+		ctx.lineCap = "round";
+		ctx.lineWidth = 20*livePoints[k].vY;
+		// ctx.strokeStyle = "rgba("+(20+150.0*bufferValue)+", "+(80.0+80*(1-bufferValue))+", 150, 255)";
+		ctx.strokeStyle = "rgba(139, 100, 35, "+livePoints[k].vY*0.01+")";
+		ctx.beginPath();
+		ctx.moveTo(livePoints[k].x,livePoints[k].y);
+		ctx.lineTo(livePoints[k].pX,livePoints[k].pY);
+		ctx.stroke();
+
+		// round up
+
+		if(livePoints[k].y > canvasHeight){
+			livePoints[k].alive = false;
+		}
+
+		livePoints[k].vX = livePoints[k].x - livePoints[k].pX;
+		livePoints[k].vY = livePoints[k].y - livePoints[k].pY;
+		friendsDrawn++;
 
 	}
 
