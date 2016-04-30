@@ -95,7 +95,6 @@ function animate() {
 
         ///======== DRAWING ENDS =======///
 
-        bounceClickDown = false;
     }
 }
 
@@ -111,7 +110,8 @@ function gatherPoints(){
 	drawLogo();
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
-	livePoints = gatherPointsFromEdges(imageData, 1);
+	// livePoints = gatherPointsFromEdges(imageData, 3);
+	livePoints = gatherRandomPointsFromEverywhere(imageData, 8);
 	console.log("Gathered livePoints, total: "+livePoints.length);
 }
 
@@ -134,7 +134,7 @@ function gatherPointsFromEdges(imageData, fidelity){
 				surrounding = getSurroundingIndices(x, y, imageData.width);
 				for(var k = 0; k < surrounding.length; k++){
 					if(pixelIsEmpty(pixels, surrounding[k])){
-						arr.push(new SmudgePixel(x, y));
+						arr.push(new SmudgePixel(x, y, getColourFromPixelData(pixels, index)));
 						break;
 					}
 				}
@@ -169,8 +169,30 @@ function gatherPointsFromEverywhere(imageData, fidelity){
 		for(var y = 0; y<imageData.height; y+=fidelity){
 			index = getArrayPosition(x, y, imageData.width);
 			if(pixelIsOccupied(pixels, index)){
-				arr.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
+				arr.push(new SmudgePixel(x, y, getColourFromPixelData(pixels, index)));
 			}	
+		}
+	}
+	return arr;
+}
+
+function getColourFromPixelData(pixels, index){
+	return [pixels[index], pixels[index+1], pixels[index+2], pixels[index+3]];
+}
+
+function gatherRandomPointsFromEverywhere(imageData, fidelity){
+	var arr = [];
+	var pixels = imageData.data;
+	var index;
+	var iterationInterval;
+	for(var x = 0; x<imageData.width; x+=iterationInterval){
+		iterationInterval = Math.ceil(Math.random()*fidelity+0.01);
+		for(var y = 0; y<imageData.height; y+=iterationInterval){
+			iterationInterval = Math.ceil(Math.random()*fidelity+0.01);
+			index = getArrayPosition(x, y, imageData.width);
+			if(pixelIsOccupied(pixels, index)){
+				arr.push(new SmudgePixel(x, y, getColourFromPixelData(pixels, index)));
+			}
 		}
 	}
 	return arr;
@@ -246,13 +268,14 @@ function drawToHeaderCanvas(){
 	var iPoint;
 
 
-	ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+	ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
 	ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
 
 	if(bounceClickDown){
 		addRepulsionForce(mouseX, mouseY);
-		// console.log("mouseX: "+mouseX+", mouseY: "+mouseY+", sample: "+bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
+		console.log("CLICK: mouseX: "+mouseX+", mouseY: "+mouseY+", sample: "+bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
+		bounceClickDown = false;
 	}
 
 	for(var k = 0; k<livePoints.length;k++){
@@ -264,17 +287,12 @@ function drawToHeaderCanvas(){
 		bufferValue = bufferData[getArrayPositionFromOutside(iPoint.position.x, iPoint.position.y, bufferWidth)+3]*inv255;
 		
 		iPoint.age -= ageDecayRate;
-		iPoint.previousPosition.x = iPoint.position.x;
-		iPoint.previousPosition.y = iPoint.position.y;
-		// iPoint.position.x += (Math.random()-0.5)*randomShiftHorz;
-		// iPoint.position.y += (Math.random()-0.5)*randomShiftVert;
+		iPoint.previousPosition.copy(iPoint.position);
 
 		var weightHorz = 1;//(noise.perlin3(iPoint.position.x*noiseScale+noiseOffset, iPoint.position.y*noiseScale+noiseOffset, frameCount*noiseRotation) + 1) * 0.5; // 0 to 1
 		var weightVert = 1;//(noise.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
 
-
-		iPoint.velocity.x += iPoint.acceleration.x;
-		iPoint.velocity.y += iPoint.acceleration.y;
+		iPoint.velocity.add(iPoint.acceleration);
 
 		var directionHorz = iPoint.velocity.x * 0.8;
 		var directionVert = iPoint.velocity.y * 0.8;
@@ -289,28 +307,18 @@ function drawToHeaderCanvas(){
 		vV = Math.pow(velocityVert, vertPow) * vertScale * ((vertPow%2)==0? vSign : 1);
 */
 		
-		iPoint.position.x += iPoint.velocity.x;//velocityHorz;
-		iPoint.position.y += iPoint.velocity.y;//velocityVert;
+		iPoint.position.add(iPoint.velocity);
 
-		///
 
 		// Draw to the buffer
 		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		bCtx.beginPath();
-		bCtx.moveTo(iPoint.position.x,iPoint.position.y);
-		bCtx.lineTo(iPoint.previousPosition.x,iPoint.previousPosition.y);
-		bCtx.stroke();
-		bCtx.fillStyle = "black";
+		drawSmudgePixelToContext(bCtx, iPoint);
 
 		// Draw to the main canvas
 		ctx.lineCap = "round";
 		ctx.lineWidth = 3;
-		// ctx.strokeStyle = "rgba("+(20+150.0*bufferValue)+", "+(80.0+80*(1-bufferValue))+", 150, 255)";
-		ctx.strokeStyle = "rgba(50, 80, 50, "+0.5+")";
-		ctx.beginPath();
-		ctx.moveTo(iPoint.position.x,iPoint.position.y);
-		ctx.lineTo(iPoint.previousPosition.x,iPoint.previousPosition.y);
-		ctx.stroke();
+		ctx.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
+		drawSmudgePixelToContext(ctx, iPoint);
 
 		// finish up
 
@@ -318,16 +326,20 @@ function drawToHeaderCanvas(){
 			iPoint.alive = false;
 		}
 
-		// iPoint.velocity.x = iPoint.position.x - iPoint.previousPosition.x;
-		// iPoint.velocity.y = iPoint.position.y - iPoint.previousPosition.y;
-
-		iPoint.updateAcceleration();
+		iPoint.resetAcceleration();
 
 		friendsDrawn++;
 	}
-
-
 }
+
+function drawSmudgePixelToContext(context, sp){
+	context.beginPath();
+	context.moveTo(sp.position.x,sp.position.y);
+	context.lineTo(sp.previousPosition.x,sp.previousPosition.y);
+	context.stroke();
+}
+
+
 
 function drawLogo(canvas){
 	canvas = canvas || ctx;
@@ -368,10 +380,19 @@ document.onkeypress = function(evt) {
     	redraw();
     }
     if(c=='b'){
-    	bufferCanvas.toggleClass("hidden");
+    	console.log("Showing buffer canvas");
+    	headerCanvas.addClass("hidden");
+    	bufferCanvas.removeClass("hidden");
     }
     if(c=='c'){
-    	headerCanvas.toggleClass("hidden");
+    	console.log("Showing main canvas");
+    	bufferCanvas.addClass("hidden");
+    	headerCanvas.removeClass("hidden");
+    }
+    if(c=='v'){
+    	console.log("Showing both canvii");
+    	bufferCanvas.removeClass("hidden");
+    	headerCanvas.removeClass("hidden");
     }
 
 };

@@ -1,6 +1,7 @@
 
 
-function SmudgePixel(x, y){
+function SmudgePixel(x, y, colourArray){
+	this.adoptedColour = colourArray;
 	this.position = new Victor(x * inverse_canvasScale, y * inverse_canvasScale);
 	this.previousPosition = this.position.clone();
 	this.velocity = new Victor(0, 0);
@@ -22,9 +23,13 @@ function SmudgePixel(x, y){
 		this.acceleration.y = posVector.y * repulsion.force * strength;
 	}
 
-	this.updateAcceleration = function(){
+	this.resetAcceleration = function(){
 		this.acceleration.x = 0;
 		this.acceleration.y = 0;
+	}
+
+	this.getColourStringWithAlpha = function(alpha){
+		return "rgba("+this.adoptedColour[0]+", "+this.adoptedColour[1]+", "+this.adoptedColour[2]+", "+alpha+")";
 	}
 
 }
