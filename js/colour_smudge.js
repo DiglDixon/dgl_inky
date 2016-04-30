@@ -11,6 +11,9 @@ var texture;
 
 
 var canvasScale = 1;
+var inverse_canvasScale = 1; // our inverse
+
+var bounceClickDown = false;
 
 $(document).ready(function(){
 	console.log("Script ready");
@@ -26,6 +29,10 @@ $(document).ready(function(){
 	resetCanvasDimensions(2);
 	redraw();
 	startAnimating(frameRate);
+
+	headerElement.on("click", function(){
+		bounceClickDown = true;
+	})
 });
 
 
@@ -36,6 +43,7 @@ function resetCanvasDimensions(scale){
 
 function resetCanvasScale(canvas, context, scale){
 	canvasScale = scale;
+	inverse_canvasScale = 1/scale;
 	context.setTransform(1, 0, 0, 1, 0, 0);
 	var height = headerElement.height();
 	var width = headerElement.width();
@@ -86,6 +94,8 @@ function animate() {
         drawToHeaderCanvas();
 
         ///======== DRAWING ENDS =======///
+
+        bounceClickDown = false;
     }
 }
 
@@ -101,28 +111,69 @@ function gatherPoints(){
 	drawLogo();
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
+	livePoints = gatherPointsFromEdges(imageData, 1);
+	console.log("Gathered livePoints, total: "+livePoints.length);
+}
+
+// Encapsulating our conditions so we can switch to RGB || A
+function pixelIsEmpty(pixels, index){
+	return pixels[index+3] == 0;
+}
+function pixelIsOccupied(pixels, index){
+	return pixels[index+3] > 0;
+}
+
+function gatherPointsFromEdges(imageData, fidelity){
+	var arr = [];
 	var pixels = imageData.data;
-	var idx, nextIdx;
-	var pointFidelity = 1;
-	var onlyEdges = true;
-	for(var x = 0; x<imageData.width; x+=pointFidelity){
-		for(var y = 0; y<imageData.height-1; y+=pointFidelity){
-			idx = getArrayPosition(x, y, imageData.width);
-			nextIdx = getArrayPosition(x, y+1, imageData.width);
-			if(onlyEdges){
-				// Require a clear pixel below
-				if(pixels[idx+3] > 0 && pixels[nextIdx+3] == 0){
-					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
-				}
-			}else{
-				// Take everything!
-				if(pixels[idx+3] > 0){
-					livePoints.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
+	var index, surrounding;
+	for(var x = 1; x<imageData.width-1; x+=fidelity){
+		for(var y = 1; y<imageData.height-1; y+=fidelity){
+			index = getArrayPosition(x, y, imageData.width);
+			if(pixelIsOccupied(pixels, index)){
+				surrounding = getSurroundingIndices(x, y, imageData.width);
+				for(var k = 0; k < surrounding.length; k++){
+					if(pixelIsEmpty(pixels, surrounding[k])){
+						arr.push(new SmudgePixel(x, y));
+						break;
+					}
 				}
 			}
 		}
 	}
-	console.log("Gathered livePoints, total: "+livePoints.length);
+	return arr;
+}
+
+function getSurroundingIndices(x, y, arrayWidth){
+	return [getArrayPosition(x-1, y, arrayWidth),
+			getArrayPosition(x+1, y, arrayWidth),
+			getArrayPosition(x, y-1, arrayWidth),
+			getArrayPosition(x, y+1, arrayWidth),
+			getArrayPosition(x-1, y-1, arrayWidth),
+			getArrayPosition(x+1, y+1, arrayWidth),
+			getArrayPosition(x-1, y+1, arrayWidth),
+			getArrayPosition(x+1, y-1, arrayWidth)];
+}
+
+function getPositionFromIndex(index, arrayWidth){
+	var y = Math.floor(index/arrayWidth);
+	var x = index - y*arrayWidth;
+	return {x: x/4, y: y/4};
+}
+
+function gatherPointsFromEverywhere(imageData, fidelity){
+	var arr = [];
+	var pixels = imageData.data;
+	var index;
+	for(var x = 0; x<imageData.width; x+=fidelity){
+		for(var y = 0; y<imageData.height; y+=fidelity){
+			index = getArrayPosition(x, y, imageData.width);
+			if(pixelIsOccupied(pixels, index)){
+				arr.push({x: x*0.5, y:y*0.5, a:1, age:1, alive:true});
+			}	
+		}
+	}
+	return arr;
 }
 
 // Call this one working within arrays
@@ -132,16 +183,16 @@ function getArrayPosition(x, y, w){
 }
 // Call this one from stuff like mouseX, mouseY
 function getArrayPositionFromOutside(x, y, w){
-	if(atDoubleResolution())
-		return getArrayPositionDouble(x, y, w);
+	// if(atDoubleResolution())
+	// 	return getArrayPositionDouble(x, y, w);
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
-	return (y * w + x)*4;
+	return (y * w * canvasScale + x * canvasScale)*4;
 }
 // PRIVATE - This one will get called if is appropriate
-function getArrayPositionDouble(x, y, w){
-	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
-	return (y * w * 2 + x * 2)*4;
-}
+// function getArrayPositionDouble(x, y, w){
+// 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
+// 	return (y * w * 2 + x * 2)*4;
+// }
 
 function redraw(){
 	livePoints = [];
@@ -152,6 +203,21 @@ function redraw(){
 
 ////
 
+
+function addRepulsionForce(x, y){
+	var repulsion = new Repulsion(x, y);
+	ctx.strokeStyle = "blue";
+	ctx.lineWidth = 2;
+	var iPoint;
+	for (var i = livePoints.length - 1; i >= 0; i--) {
+		iPoint = livePoints[i];
+		livePoints[i].addRepulsion(repulsion);
+		bCtx.beginPath();
+		bCtx.moveTo(iPoint.x,iPoint.y);
+		bCtx.lineTo(repulsion.x,repulsion.y);
+		bCtx.stroke();
+	}
+}
 
 function drawToHeaderCanvas(){
 
@@ -176,59 +242,88 @@ function drawToHeaderCanvas(){
 
 	var bufferValue;
 	var friendsDrawn = 0;
+
+	var iPoint;
+
+
+	ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+	ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+
+	if(bounceClickDown){
+		addRepulsionForce(mouseX, mouseY);
+		// console.log("mouseX: "+mouseX+", mouseY: "+mouseY+", sample: "+bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
+	}
+
 	for(var k = 0; k<livePoints.length;k++){
-		if(!livePoints[k].alive)
+		iPoint = livePoints[k];
+		if(!iPoint.alive)
 			continue;
 
 		// Calcs
 
-		bufferValue = bufferData[getArrayPositionFromOutside(livePoints[k].x, livePoints[k].y, bufferWidth)+3]*inv255;
+		bufferValue = bufferData[getArrayPositionFromOutside(iPoint.x, iPoint.y, bufferWidth)+3]*inv255;
 		
-		livePoints[k].age -= ageDecayRate;
-		livePoints[k].pX = livePoints[k].x;
-		livePoints[k].pY = livePoints[k].y;
-		livePoints[k].x += (Math.random()-0.5)*randomShiftHorz;
-		livePoints[k].y += (Math.random()-0.5)*randomShiftVert;
-		var noiseHorz = ( noise.perlin3(livePoints[k].x*noiseScale-noiseOffset, livePoints[k].y*noiseScale-noiseOffset, frameCount*noiseRotation)); // -1 to 1
-		var noiseVert = ( noise.perlin3(livePoints[k].x*noiseScale, livePoints[k].y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
+		iPoint.age -= ageDecayRate;
+		iPoint.pX = iPoint.x;
+		iPoint.pY = iPoint.y;
+		// iPoint.x += (Math.random()-0.5)*randomShiftHorz;
+		// iPoint.y += (Math.random()-0.5)*randomShiftVert;
 
-		hSign = Math.sign(noiseHorz);
-		vSign = Math.sign(noiseVert);
+		var weightHorz = 1;//(noise.perlin3(iPoint.x*noiseScale+noiseOffset, iPoint.y*noiseScale+noiseOffset, frameCount*noiseRotation) + 1) * 0.5; // 0 to 1
+		var weightVert = 1;//(noise.perlin3(iPoint.x*noiseScale, iPoint.y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
 
-		vH = Math.pow(noiseHorz, horzPow) * horzScale * ((horzPow%2)==0? hSign : 1); // We ensure the sign is maintained.
-		vV = Math.pow(noiseVert, vertPow) * vertScale * ((vertPow%2)==0? vSign : 1);
 
-		livePoints[k].x += vH;
-		livePoints[k].y += vV;
+		iPoint.vX += iPoint.acceleration.x;
+		iPoint.vY += iPoint.acceleration.y;
+
+		var directionHorz = iPoint.vX * 0.8;
+		var directionVert = iPoint.vY * 0.8;
+
+		var velocityHorz = weightHorz * directionHorz;
+		var velocityVert = weightVert * directionVert;
+/*
+		hSign = Math.sign(velocityHorz);
+		vSign = Math.sign(velocityVert);
+
+		vH = Math.pow(velocityHorz, horzPow) * horzScale * ((horzPow%2)==0? hSign : 1); // We ensure the sign is maintained.
+		vV = Math.pow(velocityVert, vertPow) * vertScale * ((vertPow%2)==0? vSign : 1);
+*/
+		
+		iPoint.x += iPoint.vX;//velocityHorz;
+		iPoint.y += iPoint.vY;//velocityVert;
 
 		///
 
 		// Draw to the buffer
 		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
 		bCtx.beginPath();
-		bCtx.moveTo(livePoints[k].x,livePoints[k].y);
-		bCtx.lineTo(livePoints[k].pX,livePoints[k].pY);
+		bCtx.moveTo(iPoint.x,iPoint.y);
+		bCtx.lineTo(iPoint.pX,iPoint.pY);
 		bCtx.stroke();
 		bCtx.fillStyle = "black";
 
 		// Draw to the main canvas
-		// ctx.lineCap = "round";
+		ctx.lineCap = "round";
 		ctx.lineWidth = 3;
 		// ctx.strokeStyle = "rgba("+(20+150.0*bufferValue)+", "+(80.0+80*(1-bufferValue))+", 150, 255)";
 		ctx.strokeStyle = "rgba(50, 80, 50, "+0.5+")";
 		ctx.beginPath();
-		ctx.moveTo(livePoints[k].x,livePoints[k].y);
-		ctx.lineTo(livePoints[k].pX,livePoints[k].pY);
+		ctx.moveTo(iPoint.x,iPoint.y);
+		ctx.lineTo(iPoint.pX,iPoint.pY);
 		ctx.stroke();
 
 		// finish up
 
-		if(livePoints[k].y > canvasHeight){
-			livePoints[k].alive = false;
+		if(iPoint.y > canvasHeight){
+			iPoint.alive = false;
 		}
 
-		livePoints[k].vX = livePoints[k].x - livePoints[k].pX;
-		livePoints[k].vY = livePoints[k].y - livePoints[k].pY;
+		// iPoint.vX = iPoint.x - iPoint.pX;
+		// iPoint.vY = iPoint.y - iPoint.pY;
+
+		iPoint.updateAcceleration();
+
 		friendsDrawn++;
 	}
 
