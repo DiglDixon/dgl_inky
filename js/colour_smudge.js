@@ -8,7 +8,11 @@ var ctx; // main context
 var bCtx; // bufferContext
 var logo;
 var texture;
+var HALF_PI = 3.141592 * 0.5;
+var TWO_PI = 3.141592*2;
+var brushR, brushG, brushB, brushK;
 
+var NOISE_OFFSET = 1000;
 
 var canvasScale = 1;
 var inverse_canvasScale = 1; // our inverse
@@ -26,6 +30,10 @@ $(document).ready(function(){
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
 	texture = $(".data-image")[0];
+	brushR = $("#brushr")[0];
+	brushG = $("#brushg")[0];
+	brushB = $("#brushb")[0];
+	// brushK = $("#brushk")[0];
 	resetCanvasDimensions(2);
 	redraw();
 	startAnimating(frameRate);
@@ -111,7 +119,7 @@ function gatherPoints(){
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	// livePoints = gatherPointsFromEdges(imageData, 3);
-	livePoints = gatherRandomPointsFromEverywhere(imageData, 8);
+	livePoints = gatherRandomPointsFromEverywhere(imageData, 50);
 	console.log("Gathered livePoints, total: "+livePoints.length);
 }
 
@@ -234,10 +242,10 @@ function addRepulsionForce(x, y){
 	for (var i = livePoints.length - 1; i >= 0; i--) {
 		iPoint = livePoints[i];
 		livePoints[i].addRepulsion(repulsion);
-		bCtx.beginPath();
-		bCtx.moveTo(iPoint.position.x,iPoint.position.y);
-		bCtx.lineTo(repulsion.x,repulsion.y);
-		bCtx.stroke();
+		// bCtx.beginPath();
+		// bCtx.moveTo(iPoint.position.x,iPoint.position.y);
+		// bCtx.lineTo(repulsion.x,repulsion.y);
+		// bCtx.stroke();
 	}
 }
 
@@ -251,13 +259,14 @@ function drawToHeaderCanvas(){
 	// smaller = tighter correlation.
 	var noiseScale = 0.01;
 	var noiseRotation = 0.01;
-	var ageDecayRate = 0.00;
-	var horzScale = 1, horzPow = 1;
-	var vertScale = 5, vertPow = 2;
-	var hSign, vSign, vV, vH;
-	var colourRotation = 0.1;
+	var ageDecayRate = 0.01;
+	var noiseVelocity = new Victor(2, 2);
+	var horzPow = 1, vertPow = 2;
 	var randomShiftHorz = 0, randomShiftVert = 0;
+	var colourRotation = 0.1;
 	var noiseOffset = 100;
+	var noiseWeight = new Victor(0, 0);
+	var velocityDecay = 0.95;
 
 	var inv255 = 1.0/255.0;
 	var invLength = 1/livePoints.length;
@@ -267,9 +276,22 @@ function drawToHeaderCanvas(){
 
 	var iPoint;
 
+	var noiseVector = new Victor();
 
-	ctx.fillStyle = "rgba(255, 255, 255, 0.01)";
-	ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+	// ctx.save();
+	// ctx.globalCompositeOperation = "source-over";
+	// ctx.drawImage(brush, 20, 20, 50, 50);
+	// ctx.globalCompositeOperation = "source-in";
+	// ctx.fillStyle = "rgba(255, 0, 0, 1)";
+	// ctx.fillRect(20, 20, 50, 50);
+	// // THIS NUKES THE ENTIRE CANVAS. We need to do a colour pass and a shapes pass if we want to do this.
+	// // Maybe using the buffer and putImageData.
+	// // Blurgh.
+	// ctx.restore();
+
+
+	// ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+	// ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
 
 	if(bounceClickDown){
@@ -289,40 +311,45 @@ function drawToHeaderCanvas(){
 		iPoint.age -= ageDecayRate;
 		iPoint.previousPosition.copy(iPoint.position);
 
-		var weightHorz = 1;//(noise.perlin3(iPoint.position.x*noiseScale+noiseOffset, iPoint.position.y*noiseScale+noiseOffset, frameCount*noiseRotation) + 1) * 0.5; // 0 to 1
-		var weightVert = 1;//(noise.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
-
 		iPoint.velocity.add(iPoint.acceleration);
 
-		var directionHorz = iPoint.velocity.x * 0.8;
-		var directionVert = iPoint.velocity.y * 0.8;
+		// Find the noise values	
+		noiseVector.x = (noise.perlin3(iPoint.position.x*noiseScale+NOISE_OFFSET, iPoint.position.y*noiseScale+NOISE_OFFSET, frameCount*noiseRotation));// + 1) * 0.5; // 0 to 1
+		noiseVector.y = (noise.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, frameCount*noiseRotation));// + 1 ) * 0.5; // 0 to 1
+		// Apply exponent
+		noiseVector.x = Math.pow(noiseVector.x, horzPow) * ((horzPow%2)==0? Math.sign(noiseVector.x) : 1); // We ensure the sign is maintained.
+		noiseVector.y = Math.pow(noiseVector.y, vertPow) * ((vertPow%2)==0? Math.sign(noiseVector.y) : 1);
+		// Adjust to weighting
+		// noiseVector.x = noiseVector.x * noiseWeight.x + (1-noiseWeight.x);
+		// noiseVector.y = noiseVector.y * noiseWeight.y + (1-noiseWeight.y);
+		noiseVector.multiply(noiseVelocity);
 
-		var velocityHorz = weightHorz * directionHorz;
-		var velocityVert = weightVert * directionVert;
-/*
-		hSign = Math.sign(velocityHorz);
-		vSign = Math.sign(velocityVert);
 
-		vH = Math.pow(velocityHorz, horzPow) * horzScale * ((horzPow%2)==0? hSign : 1); // We ensure the sign is maintained.
-		vV = Math.pow(velocityVert, vertPow) * vertScale * ((vertPow%2)==0? vSign : 1);
-*/
+		iPoint.velocity.add(noiseVector);
 		
+		iPoint.velocity.multiplyScalar(velocityDecay);
+
 		iPoint.position.add(iPoint.velocity);
 
 
 		// Draw to the buffer
-		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		drawSmudgePixelToContext(bCtx, iPoint);
-
+		// bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		// drawSmudgePixelToContext(bCtx, iPoint);
+		// clearCanvas(bCtx);
 		// Draw to the main canvas
 		ctx.lineCap = "round";
-		ctx.lineWidth = 3;
-		ctx.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
-		drawSmudgePixelToContext(ctx, iPoint);
-
+		// Math.seedrandom(iPoint.seed);
+		ctx.lineWidth = iPoint.randomSize * iPoint.age;
+		ctx.strokeStyle = iPoint.getColourStringWithAlpha(Math.random());
+		
+		// drawSmudgePixelToContext(ctx, iPoint);
+		drawImageFromSmudgePixel(ctx, iPoint);
 		// finish up
 
 		if(iPoint.position.y > canvasHeight){
+			iPoint.alive = false;
+		}
+		if(iPoint.age <= 0){
 			iPoint.alive = false;
 		}
 
@@ -330,6 +357,40 @@ function drawToHeaderCanvas(){
 
 		friendsDrawn++;
 	}
+
+}
+
+function drawImageFromSmudgePixel(context, sp){
+	// context.globalCompositeOperation = "source-over";
+	// context.globalCompositeOperation = "overlay";
+	// context.fillStyle = sp.getColourStringWithAlpha(1);
+	// context.fillRect(sp.position.x, sp.position.y, 10, 10);
+
+	ctx.globalCompositeOperation = "lighten";
+
+	var angleInRadians = Math.random()*TWO_PI;
+	context.translate(sp.position.x, sp.position.y);
+	context.rotate(angleInRadians);
+	var col = sp.adoptedColour;
+	context.globalAlpha = col[0]/555;
+	context.drawImage(brushR, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
+
+	// context.globalAlpha = col[1]/255;
+	// context.drawImage(brushG, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
+
+	// context.globalAlpha = col[3]/255;
+	// context.drawImage(brushB, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
+	// context.drawImage(logo, -logo.width / 2, -logo.height / 2, logo.width, logo.height);
+	context.rotate(-angleInRadians);
+	context.translate(-sp.position.x, -sp.position.y);
+
+	context.globalAlpha = 1;
+
+	ctx.globalCompositeOperation = "source-over";
+	// ctx.drawImage(brush, 20, 20, 50, 50);
+	// ctx.globalCompositeOperation = "source-in";
+	// ctx.fillStyle = "rgba(255, 0, 0, 1)";
+	// ctx.fillRect(20, 20, 50, 50);
 }
 
 function drawSmudgePixelToContext(context, sp){
@@ -344,12 +405,12 @@ function drawSmudgePixelToContext(context, sp){
 function drawLogo(canvas){
 	canvas = canvas || ctx;
 	var scale = 0.6;
-	var width = 83*scale, height = 50*scale, x = canvasWidth*0.5, y = canvasHeight*0.5;
-	var angleInRadians = -3.141592 * 0.5;
+	var x = canvasWidth*0.5, y = canvasHeight*0.5;
+	var angleInRadians = -HALF_PI;
 
 	canvas.translate(x, y);
 	canvas.rotate(angleInRadians);
-	canvas.drawImage(logo, -width / 2, -height / 2, width, height);
+	canvas.drawImage(logo, -logo.width / 2, -logo.height / 2, logo.width, logo.height);
 	canvas.rotate(-angleInRadians);
 	canvas.translate(-x, -y);
 }

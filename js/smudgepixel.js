@@ -6,9 +6,11 @@ function SmudgePixel(x, y, colourArray){
 	this.previousPosition = this.position.clone();
 	this.velocity = new Victor(0, 0);
 	this.acceleration = new Victor(0, 0);
+	this.randomSize = Math.random()*50;
 	this.age = 1;
 	this.alive = true;
 	this.a = 1;
+	this.seed = Math.floor(Math.random()*10000);
 
 	this.addRepulsion = function(repulsion){
 		var posVector = this.position.clone();
@@ -36,7 +38,7 @@ function SmudgePixel(x, y, colourArray){
 
 function Repulsion(x, y){
 	this.position = new Victor(x, y);
-	this.radius = 50;
+	this.radius = 200;
 	this.radiusSquared = this.radius*this.radius;
 	this.inverse_radiusSquared = 1/this.radiusSquared;
 	this.inverse_radius = 1/this.radius;
