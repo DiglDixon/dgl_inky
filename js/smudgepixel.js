@@ -1,20 +1,17 @@
 
 
 function SmudgePixel(x, y){
-	this.x = x * inverse_canvasScale;
-	this.y = y * inverse_canvasScale;
-	this.pX = this.x;
-	this.pY = this.y;
-	this.vX = 0;
-	this.vY = 0;
-	this.acceleration = {x:0, y:0};
+	this.position = new Victor(x * inverse_canvasScale, y * inverse_canvasScale);
+	this.previousPosition = this.position.clone();
+	this.velocity = new Victor(0, 0);
+	this.acceleration = new Victor(0, 0);
 	this.age = 1;
 	this.alive = true;
-	this.a  = 1;
+	this.a = 1;
 
 	this.addRepulsion = function(repulsion){
-		var posVector = new Victor(this.x, this.y);
-		var rVector = new Victor(repulsion.x, repulsion.y);
+		var posVector = this.position.clone();
+		var rVector = repulsion.position.clone();
 		posVector.subtract(rVector);
 		var dist = posVector.lengthSq();
 		dist = clamp(dist, 0, repulsion.radiusSquared);
@@ -33,8 +30,7 @@ function SmudgePixel(x, y){
 }
 
 function Repulsion(x, y){
-	this.x = x;// * inverse_canvasScale;
-	this.y = y;// * inverse_canvasScale;
+	this.position = new Victor(x, y);
 	this.radius = 50;
 	this.radiusSquared = this.radius*this.radius;
 	this.inverse_radiusSquared = 1/this.radiusSquared;

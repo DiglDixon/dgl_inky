@@ -213,7 +213,7 @@ function addRepulsionForce(x, y){
 		iPoint = livePoints[i];
 		livePoints[i].addRepulsion(repulsion);
 		bCtx.beginPath();
-		bCtx.moveTo(iPoint.x,iPoint.y);
+		bCtx.moveTo(iPoint.position.x,iPoint.position.y);
 		bCtx.lineTo(repulsion.x,repulsion.y);
 		bCtx.stroke();
 	}
@@ -259,26 +259,25 @@ function drawToHeaderCanvas(){
 		iPoint = livePoints[k];
 		if(!iPoint.alive)
 			continue;
-
 		// Calcs
 
-		bufferValue = bufferData[getArrayPositionFromOutside(iPoint.x, iPoint.y, bufferWidth)+3]*inv255;
+		bufferValue = bufferData[getArrayPositionFromOutside(iPoint.position.x, iPoint.position.y, bufferWidth)+3]*inv255;
 		
 		iPoint.age -= ageDecayRate;
-		iPoint.pX = iPoint.x;
-		iPoint.pY = iPoint.y;
-		// iPoint.x += (Math.random()-0.5)*randomShiftHorz;
-		// iPoint.y += (Math.random()-0.5)*randomShiftVert;
+		iPoint.previousPosition.x = iPoint.position.x;
+		iPoint.previousPosition.y = iPoint.position.y;
+		// iPoint.position.x += (Math.random()-0.5)*randomShiftHorz;
+		// iPoint.position.y += (Math.random()-0.5)*randomShiftVert;
 
-		var weightHorz = 1;//(noise.perlin3(iPoint.x*noiseScale+noiseOffset, iPoint.y*noiseScale+noiseOffset, frameCount*noiseRotation) + 1) * 0.5; // 0 to 1
-		var weightVert = 1;//(noise.perlin3(iPoint.x*noiseScale, iPoint.y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
+		var weightHorz = 1;//(noise.perlin3(iPoint.position.x*noiseScale+noiseOffset, iPoint.position.y*noiseScale+noiseOffset, frameCount*noiseRotation) + 1) * 0.5; // 0 to 1
+		var weightVert = 1;//(noise.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, frameCount*noiseRotation) +1 )*0.5; // 0 to 1
 
 
-		iPoint.vX += iPoint.acceleration.x;
-		iPoint.vY += iPoint.acceleration.y;
+		iPoint.velocity.x += iPoint.acceleration.x;
+		iPoint.velocity.y += iPoint.acceleration.y;
 
-		var directionHorz = iPoint.vX * 0.8;
-		var directionVert = iPoint.vY * 0.8;
+		var directionHorz = iPoint.velocity.x * 0.8;
+		var directionVert = iPoint.velocity.y * 0.8;
 
 		var velocityHorz = weightHorz * directionHorz;
 		var velocityVert = weightVert * directionVert;
@@ -290,16 +289,16 @@ function drawToHeaderCanvas(){
 		vV = Math.pow(velocityVert, vertPow) * vertScale * ((vertPow%2)==0? vSign : 1);
 */
 		
-		iPoint.x += iPoint.vX;//velocityHorz;
-		iPoint.y += iPoint.vY;//velocityVert;
+		iPoint.position.x += iPoint.velocity.x;//velocityHorz;
+		iPoint.position.y += iPoint.velocity.y;//velocityVert;
 
 		///
 
 		// Draw to the buffer
 		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
 		bCtx.beginPath();
-		bCtx.moveTo(iPoint.x,iPoint.y);
-		bCtx.lineTo(iPoint.pX,iPoint.pY);
+		bCtx.moveTo(iPoint.position.x,iPoint.position.y);
+		bCtx.lineTo(iPoint.previousPosition.x,iPoint.previousPosition.y);
 		bCtx.stroke();
 		bCtx.fillStyle = "black";
 
@@ -309,18 +308,18 @@ function drawToHeaderCanvas(){
 		// ctx.strokeStyle = "rgba("+(20+150.0*bufferValue)+", "+(80.0+80*(1-bufferValue))+", 150, 255)";
 		ctx.strokeStyle = "rgba(50, 80, 50, "+0.5+")";
 		ctx.beginPath();
-		ctx.moveTo(iPoint.x,iPoint.y);
-		ctx.lineTo(iPoint.pX,iPoint.pY);
+		ctx.moveTo(iPoint.position.x,iPoint.position.y);
+		ctx.lineTo(iPoint.previousPosition.x,iPoint.previousPosition.y);
 		ctx.stroke();
 
 		// finish up
 
-		if(iPoint.y > canvasHeight){
+		if(iPoint.position.y > canvasHeight){
 			iPoint.alive = false;
 		}
 
-		// iPoint.vX = iPoint.x - iPoint.pX;
-		// iPoint.vY = iPoint.y - iPoint.pY;
+		// iPoint.velocity.x = iPoint.position.x - iPoint.previousPosition.x;
+		// iPoint.velocity.y = iPoint.position.y - iPoint.previousPosition.y;
 
 		iPoint.updateAcceleration();
 
