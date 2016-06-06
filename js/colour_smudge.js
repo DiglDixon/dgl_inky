@@ -17,8 +17,6 @@ var NOISE_OFFSET = 1000;
 var canvasScale = 1;
 var inverse_canvasScale = 1; // our inverse
 
-var bounceClickDown = false;
-
 $(document).ready(function(){
 	console.log("Script ready");
 	headerElement = $(".header-menu");
@@ -37,10 +35,6 @@ $(document).ready(function(){
 	resetCanvasDimensions(2);
 	redraw();
 	startAnimating(frameRate);
-
-	headerElement.on("click", function(){
-		bounceClickDown = true;
-	})
 });
 
 
@@ -110,7 +104,7 @@ function animate() {
 
 var livePoints = [];
 
-function gatherPoints(){
+function resetPoints(){
 	ctx.globalCompositeOperation = 'source-over';
 	clearCanvas(ctx);
 
@@ -119,7 +113,8 @@ function gatherPoints(){
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	// livePoints = gatherPointsFromEdges(imageData, 3);
-	livePoints = gatherRandomPointsFromEverywhere(imageData, 50);
+	livePoints = gatherPointsFromEdges(imageData, 4);
+	// livePoints = gatherRandomPointsFromRadius(imageData, 5, {x:imageData.width/2, y:imageData.height/2, radius: 100});
 	console.log("Gathered livePoints, total: "+livePoints.length);
 }
 
@@ -206,6 +201,31 @@ function gatherRandomPointsFromEverywhere(imageData, fidelity){
 	return arr;
 }
 
+function gatherRandomPointsFromRadius(imageData, fidelity, options){
+	var radCentreX = options.y || 0;
+	var radCentreY = options.x || 0;
+	var radius = options.radius || 1;
+	var arrayFunction = options.arrayFunction || getArrayPosition;
+	var arr = [];
+	var pixels = imageData.data;
+	var index;
+	var iterationInterval;
+	var radiusSq = radius * radius;
+	for(var x = Math.max(radCentreX-radius, 0); x<Math.min(radCentreX+radius, imageData.width); x+=iterationInterval){
+		iterationInterval = Math.ceil(Math.random()*fidelity+0.01);
+		for(var y = Math.max(radCentreY-radius, 0); y<Math.min(radCentreY+radius, imageData.height); y+=iterationInterval){
+			iterationInterval = Math.ceil(Math.random()*fidelity+0.01);
+			if(distSq(x, y, radCentreX, radCentreY) > radiusSq )
+				continue;
+			index = arrayFunction(x, y, imageData.width);
+			if(pixelIsOccupied(pixels, index)){
+				arr.push(new SmudgePixel(x, y, getColourFromPixelData(pixels, index)));
+			}
+		}
+	}
+	return arr;
+}
+
 // Call this one working within arrays
 function getArrayPosition(x, y, w){
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
@@ -228,7 +248,7 @@ function redraw(){
 	livePoints = [];
 	noise.seed(Math.random());
 
-	gatherPoints();
+	resetPoints();
 }
 
 ////
@@ -251,6 +271,8 @@ function addRepulsionForce(x, y){
 
 function drawToHeaderCanvas(){
 
+	var mainImage = ctx.getImageData(0, 0, canvasWidth * canvasScale, canvasHeight * canvasScale);
+	// var mainData = mainImage.data;
 	var bufferImage = bCtx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	var bufferData = bufferImage.data;
 	var bufferWidth = bufferImage.width;
@@ -260,7 +282,7 @@ function drawToHeaderCanvas(){
 	var noiseScale = 0.01;
 	var noiseRotation = 0.01;
 	var ageDecayRate = 0.01;
-	var noiseVelocity = new Victor(2, 2);
+	var noiseVelocity = new Victor(0.2, 0.2);
 	var horzPow = 1, vertPow = 2;
 	var randomShiftHorz = 0, randomShiftVert = 0;
 	var colourRotation = 0.1;
@@ -293,12 +315,15 @@ function drawToHeaderCanvas(){
 	// ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
 	// ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-
-	if(bounceClickDown){
-		addRepulsionForce(mouseX, mouseY);
-		console.log("CLICK: mouseX: "+mouseX+", mouseY: "+mouseY+", sample: "+bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]);
-		bounceClickDown = false;
-	}
+	// var mouseBufferValue = bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]*inv255;
+	// if(mouseBufferValue > 0){
+	// 	console.log("Detected buffer value: "+mouseBufferValue+", "+mouseX+", "+mouseY);
+	// 	var newPoints = gatherRandomPointsFromRadius(bufferImage, 5, {x:mouseX, y:mouseY, radius:50, arrayFunction:getArrayPositionFromOutside});
+	// 	// console.log(mainData);
+	// 	console.log("newPoints size: "+newPoints.length);
+	// 	livePoints = livePoints.concat(newPoints);
+	// 	console.log("new livePoints total: "+livePoints.length);
+	// }
 
 	for(var k = 0; k<livePoints.length;k++){
 		iPoint = livePoints[k];
@@ -333,24 +358,23 @@ function drawToHeaderCanvas(){
 
 
 		// Draw to the buffer
-		// bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		// drawSmudgePixelToContext(bCtx, iPoint);
-		// clearCanvas(bCtx);
+		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		drawSmudgePixelToContext(bCtx, iPoint);
+
 		// Draw to the main canvas
 		ctx.lineCap = "round";
-		// Math.seedrandom(iPoint.seed);
-		ctx.lineWidth = iPoint.randomSize * iPoint.age;
-		ctx.strokeStyle = iPoint.getColourStringWithAlpha(Math.random());
-		
-		// drawSmudgePixelToContext(ctx, iPoint);
-		drawImageFromSmudgePixel(ctx, iPoint);
+
+		//
+		ctx.lineWidth = 1;//iPoint.randomSize;
+		ctx.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
+		drawSmudgePixelToContext(ctx, iPoint);
 		// finish up
 
 		if(iPoint.position.y > canvasHeight){
 			iPoint.alive = false;
 		}
 		if(iPoint.age <= 0){
-			iPoint.alive = false;
+			// iPoint.alive = false;
 		}
 
 		iPoint.resetAcceleration();
@@ -361,36 +385,12 @@ function drawToHeaderCanvas(){
 }
 
 function drawImageFromSmudgePixel(context, sp){
-	// context.globalCompositeOperation = "source-over";
-	// context.globalCompositeOperation = "overlay";
-	// context.fillStyle = sp.getColourStringWithAlpha(1);
-	// context.fillRect(sp.position.x, sp.position.y, 10, 10);
-
-	ctx.globalCompositeOperation = "lighten";
-
-	var angleInRadians = Math.random()*TWO_PI;
-	context.translate(sp.position.x, sp.position.y);
-	context.rotate(angleInRadians);
-	var col = sp.adoptedColour;
-	context.globalAlpha = col[0]/555;
-	context.drawImage(brushR, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
-
-	// context.globalAlpha = col[1]/255;
-	// context.drawImage(brushG, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
-
-	// context.globalAlpha = col[3]/255;
-	// context.drawImage(brushB, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
-	// context.drawImage(logo, -logo.width / 2, -logo.height / 2, logo.width, logo.height);
-	context.rotate(-angleInRadians);
-	context.translate(-sp.position.x, -sp.position.y);
-
-	context.globalAlpha = 1;
-
-	ctx.globalCompositeOperation = "source-over";
-	// ctx.drawImage(brush, 20, 20, 50, 50);
-	// ctx.globalCompositeOperation = "source-in";
-	// ctx.fillStyle = "rgba(255, 0, 0, 1)";
-	// ctx.fillRect(20, 20, 50, 50);
+	// var angleInRadians = Math.random()*TWO_PI;
+	// context.translate(sp.position.x, sp.position.y);
+	// context.rotate(angleInRadians);
+	// context.drawImage(brushR, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
+	// context.rotate(-angleInRadians);
+	// context.translate(-sp.position.x, -sp.position.y);
 }
 
 function drawSmudgePixelToContext(context, sp){

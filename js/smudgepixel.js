@@ -7,7 +7,7 @@ function SmudgePixel(x, y, colourArray){
 	this.velocity = new Victor(0, 0);
 	this.acceleration = new Victor(0, 0);
 	this.randomSize = Math.random()*50;
-	this.age = 1;
+	this.age = Math.random();
 	this.alive = true;
 	this.a = 1;
 	this.seed = Math.floor(Math.random()*10000);
