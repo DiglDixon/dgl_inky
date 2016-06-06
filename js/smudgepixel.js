@@ -34,6 +34,24 @@ function SmudgePixel(x, y, colourArray){
 		return "rgba("+this.adoptedColour[0]+", "+this.adoptedColour[1]+", "+this.adoptedColour[2]+", "+alpha+")";
 	}
 
+	this.updatePhysics = function(){
+		// 
+	}
+
+	this.updatePhysicsAsInk = function(options){
+		this.age -= options.ageDecayRate;
+		this.previousPosition.copy(this.position);
+		this.velocity.add(this.acceleration);
+		// Find the noise values	
+		var noiseVector = getNoiseAtPosition(this.position.x, this.position.y, FRAMECOUNT*options.noiseRotation, options.noiseScale);
+		// Apply exponent
+		noiseVector.y = noiseVector.y * noiseVector.y;
+		// Adjust to weighting
+		noiseVector.multiply(options.noiseVelocity);
+		this.velocity.add(options.noiseVector);
+		this.position.add(this.velocity);
+	}
+
 }
 
 function Repulsion(x, y){

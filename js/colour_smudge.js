@@ -1,4 +1,4 @@
-
+// Ink, grass, roots, vines
 
 var headerElement;
 var headerCanvas, bufferCanvas;
@@ -7,7 +7,6 @@ var canvasWidth, canvasHeight;
 var ctx; // main context
 var bCtx; // bufferContext
 var logo;
-var texture;
 var HALF_PI = 3.141592 * 0.5;
 var TWO_PI = 3.141592*2;
 var brushR, brushG, brushB, brushK;
@@ -27,14 +26,11 @@ $(document).ready(function(){
 	ctx = headerContext;
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
-	texture = $(".data-image")[0];
-	brushR = $("#brushr")[0];
-	brushG = $("#brushg")[0];
-	brushB = $("#brushb")[0];
-	// brushK = $("#brushk")[0];
 	resetCanvasDimensions(2);
-	redraw();
-	startAnimating(frameRate);
+	setTimeout(function(){
+		redraw();
+		startAnimating(FRAMERATE);
+	}, 1000);
 });
 
 
@@ -64,8 +60,8 @@ function atDoubleResolution(){
 
 /////
 
-var frameRate = 60;
-var frameCount = 0;
+var FRAMERATE = 60;
+var FRAMECOUNT = 0;
 var fpsInterval,startTime,now,then,elapsed;
 var paused = false;
 
@@ -89,11 +85,12 @@ function animate() {
     	return;
     if (elapsed > fpsInterval) {
         then = now - (elapsed % fpsInterval);
-        frameCount++;
+        FRAMECOUNT++;
 
         ///======== DRAWING BEGINS =======///
-
-        drawToHeaderCanvas();
+        // drawInk
+        var drawingObjects = {points:livePoints, context:ctx, buffer:bCtx};
+        drawToHeaderCanvas(drawingObjects);
 
         ///======== DRAWING ENDS =======///
 
@@ -113,9 +110,14 @@ function resetPoints(){
 
 	var imageData = ctx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
 	// livePoints = gatherPointsFromEdges(imageData, 3);
-	livePoints = gatherPointsFromEdges(imageData, 4);
+	livePoints = gatherRandomPointsFromEverywhere(imageData, 100);
 	// livePoints = gatherRandomPointsFromRadius(imageData, 5, {x:imageData.width/2, y:imageData.height/2, radius: 100});
 	console.log("Gathered livePoints, total: "+livePoints.length);
+}
+
+function clearCanvas(canvas){
+	canvas = canvas || ctx;
+	canvas.clearRect(0, 0, canvasWidth, canvasHeight);
 }
 
 // Encapsulating our conditions so we can switch to RGB || A
@@ -233,22 +235,22 @@ function getArrayPosition(x, y, w){
 }
 // Call this one from stuff like mouseX, mouseY
 function getArrayPositionFromOutside(x, y, w){
-	// if(atDoubleResolution())
-	// 	return getArrayPositionDouble(x, y, w);
 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
 	return (y * w * canvasScale + x * canvasScale)*4;
 }
-// PRIVATE - This one will get called if is appropriate
-// function getArrayPositionDouble(x, y, w){
-// 	x = Math.floor(x); y = Math.floor(y); w = Math.floor(w);
-// 	return (y * w * 2 + x * 2)*4;
-// }
 
 function redraw(){
 	livePoints = [];
-	noise.seed(Math.random());
+	NOISE.seed(Math.random());
 
 	resetPoints();
+}
+
+function getNoiseAtPosition(x, y, z, scale){
+	return {
+		x: NOISE.perlin3(x*scale+NOISE_OFFSET, y*scale+NOISE_OFFSET, z),
+		y: NOISE.perlin3(x*scale, y*scale, z)
+	}
 }
 
 ////
@@ -262,36 +264,28 @@ function addRepulsionForce(x, y){
 	for (var i = livePoints.length - 1; i >= 0; i--) {
 		iPoint = livePoints[i];
 		livePoints[i].addRepulsion(repulsion);
-		// bCtx.beginPath();
-		// bCtx.moveTo(iPoint.position.x,iPoint.position.y);
-		// bCtx.lineTo(repulsion.x,repulsion.y);
-		// bCtx.stroke();
 	}
 }
 
-function drawToHeaderCanvas(){
+function drawInk(objects){
+	var context = objects.context || ctx;
+	var buffer = objects.buffer || bCtx;
+	var points = objects.point || livePoints;
 
-	var mainImage = ctx.getImageData(0, 0, canvasWidth * canvasScale, canvasHeight * canvasScale);
-	// var mainData = mainImage.data;
-	var bufferImage = bCtx.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
-	var bufferData = bufferImage.data;
-	var bufferWidth = bufferImage.width;
-
-	// Load o' controls.
-	// smaller = tighter correlation.
-	var noiseScale = 0.01;
-	var noiseRotation = 0.01;
-	var ageDecayRate = 0.01;
-	var noiseVelocity = new Victor(0.2, 0.2);
-	var horzPow = 1, vertPow = 2;
-	var randomShiftHorz = 0, randomShiftVert = 0;
-	var colourRotation = 0.1;
-	var noiseOffset = 100;
-	var noiseWeight = new Victor(0, 0);
-	var velocityDecay = 0.95;
-
-	var inv255 = 1.0/255.0;
-	var invLength = 1/livePoints.length;
+	var physicsOptions = {
+		noiseScale: 0.005,
+		noiseRotation: 0.005,
+		ageDecayRate: 0.01,
+		noiseVelocity: new Victor(0.5, 0.99),
+		horzPow: 1,
+		vertPow: 2,
+		randomShiftHorz: 0,
+		randomShiftVert: 0,
+		colourRotation: 0.1,
+		noiseOffset: 100,
+		noiseWeight: new Victor(0, 0),
+		velocityDecay: 0.95
+	}
 
 	var bufferValue;
 	var friendsDrawn = 0;
@@ -300,33 +294,74 @@ function drawToHeaderCanvas(){
 
 	var noiseVector = new Victor();
 
-	// ctx.save();
-	// ctx.globalCompositeOperation = "source-over";
-	// ctx.drawImage(brush, 20, 20, 50, 50);
-	// ctx.globalCompositeOperation = "source-in";
-	// ctx.fillStyle = "rgba(255, 0, 0, 1)";
-	// ctx.fillRect(20, 20, 50, 50);
-	// // THIS NUKES THE ENTIRE CANVAS. We need to do a colour pass and a shapes pass if we want to do this.
-	// // Maybe using the buffer and putImageData.
-	// // Blurgh.
-	// ctx.restore();
+
+	for(var k = 0; k<points.length;k++){
+		iPoint = points[k];
+
+		iPoint.updatePhysicsAsInk(physicsOptions);
+
+		// Draw to the buffer
+		buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		drawSmudgePixelToContext(buffer, iPoint);
+
+		// Draw to the main canvas
+		context.lineCap = "round";
+
+		//
+		context.lineWidth = 1;//iPoint.randomSize;
+		context.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
+		drawSmudgePixelToContext(context, iPoint);
+		// finish up
+
+		if(iPoint.position.y > canvasHeight){
+			iPoint.alive = false;
+		}
+		if(iPoint.age <= 0){
+			// iPoint.alive = false;
+		}
+
+		iPoint.resetAcceleration();
+
+		friendsDrawn++;
+	}
+}
+
+function drawToHeaderCanvas(objects){
+	var context = objects.context || ctx;
+	var buffer = objects.buffer || bCtx;
+	var points = objects.point || livePoints;
+	var mainImage = context.getImageData(0, 0, canvasWidth * canvasScale, canvasHeight * canvasScale);
+	// var mainData = mainImage.data;
+	var bufferImage = buffer.getImageData(0, 0, canvasWidth*canvasScale, canvasHeight*canvasScale);
+	var bufferData = bufferImage.data;
+	var bufferWidth = bufferImage.width;
+
+	// Load o' controls.
+	
+	var noiseScale = 0.005; // smaller = tighter correlation.
+	var noiseRotation = 0.005;
+	var ageDecayRate = 0.01;
+	var noiseVelocity = new Victor(0.5, 0.99);
+	var horzPow = 1, vertPow = 2;
+	var randomShiftHorz = 0, randomShiftVert = 0;
+	var colourRotation = 0.1;
+	var noiseOffset = 100;
+	var noiseWeight = new Victor(0, 0);
+	var velocityDecay = 0.95;
+
+	var inv255 = 1.0/255.0;
+	var invLength = 1/points.length;
+
+	var bufferValue;
+	var friendsDrawn = 0;
+
+	var iPoint;
+
+	var noiseVector = new Victor();
 
 
-	// ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
-	// ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-	// var mouseBufferValue = bufferData[getArrayPositionFromOutside(mouseX, mouseY, bufferWidth)+3]*inv255;
-	// if(mouseBufferValue > 0){
-	// 	console.log("Detected buffer value: "+mouseBufferValue+", "+mouseX+", "+mouseY);
-	// 	var newPoints = gatherRandomPointsFromRadius(bufferImage, 5, {x:mouseX, y:mouseY, radius:50, arrayFunction:getArrayPositionFromOutside});
-	// 	// console.log(mainData);
-	// 	console.log("newPoints size: "+newPoints.length);
-	// 	livePoints = livePoints.concat(newPoints);
-	// 	console.log("new livePoints total: "+livePoints.length);
-	// }
-
-	for(var k = 0; k<livePoints.length;k++){
-		iPoint = livePoints[k];
+	for(var k = 0; k<points.length;k++){
+		iPoint = points[k];
 		if(!iPoint.alive)
 			continue;
 		// Calcs
@@ -339,8 +374,8 @@ function drawToHeaderCanvas(){
 		iPoint.velocity.add(iPoint.acceleration);
 
 		// Find the noise values	
-		noiseVector.x = (noise.perlin3(iPoint.position.x*noiseScale+NOISE_OFFSET, iPoint.position.y*noiseScale+NOISE_OFFSET, frameCount*noiseRotation));// + 1) * 0.5; // 0 to 1
-		noiseVector.y = (noise.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, frameCount*noiseRotation));// + 1 ) * 0.5; // 0 to 1
+		noiseVector.x = (NOISE.perlin3(iPoint.position.x*noiseScale+NOISE_OFFSET, iPoint.position.y*noiseScale+NOISE_OFFSET, FRAMECOUNT*noiseRotation));// + 1) * 0.5; // 0 to 1
+		noiseVector.y = (NOISE.perlin3(iPoint.position.x*noiseScale, iPoint.position.y*noiseScale, FRAMECOUNT*noiseRotation));// + 1 ) * 0.5; // 0 to 1
 		// Apply exponent
 		noiseVector.x = Math.pow(noiseVector.x, horzPow) * ((horzPow%2)==0? Math.sign(noiseVector.x) : 1); // We ensure the sign is maintained.
 		noiseVector.y = Math.pow(noiseVector.y, vertPow) * ((vertPow%2)==0? Math.sign(noiseVector.y) : 1);
@@ -358,16 +393,16 @@ function drawToHeaderCanvas(){
 
 
 		// Draw to the buffer
-		bCtx.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		drawSmudgePixelToContext(bCtx, iPoint);
+		buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		drawSmudgePixelToContext(buffer, iPoint);
 
 		// Draw to the main canvas
-		ctx.lineCap = "round";
+		context.lineCap = "round";
 
 		//
-		ctx.lineWidth = 1;//iPoint.randomSize;
-		ctx.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
-		drawSmudgePixelToContext(ctx, iPoint);
+		context.lineWidth = 1;//iPoint.randomSize;
+		context.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
+		drawSmudgePixelToContext(context, iPoint);
 		// finish up
 
 		if(iPoint.position.y > canvasHeight){
@@ -384,14 +419,6 @@ function drawToHeaderCanvas(){
 
 }
 
-function drawImageFromSmudgePixel(context, sp){
-	// var angleInRadians = Math.random()*TWO_PI;
-	// context.translate(sp.position.x, sp.position.y);
-	// context.rotate(angleInRadians);
-	// context.drawImage(brushR, -brushR.width*0.5, -brushR.height*0.5, brushR.width, brushR.width);
-	// context.rotate(-angleInRadians);
-	// context.translate(-sp.position.x, -sp.position.y);
-}
 
 function drawSmudgePixelToContext(context, sp){
 	context.beginPath();
@@ -399,7 +426,6 @@ function drawSmudgePixelToContext(context, sp){
 	context.lineTo(sp.previousPosition.x,sp.previousPosition.y);
 	context.stroke();
 }
-
 
 
 function drawLogo(canvas){
@@ -413,11 +439,6 @@ function drawLogo(canvas){
 	canvas.drawImage(logo, -logo.width / 2, -logo.height / 2, logo.width, logo.height);
 	canvas.rotate(-angleInRadians);
 	canvas.translate(-x, -y);
-}
-
-function clearCanvas(canvas){
-	canvas = canvas || ctx;
-	canvas.clearRect(0, 0, canvasWidth, canvasHeight);
 }
 
 
