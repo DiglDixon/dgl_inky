@@ -42,14 +42,43 @@ function SmudgePixel(x, y, colourArray){
 		this.age -= options.ageDecayRate;
 		this.previousPosition.copy(this.position);
 		this.velocity.add(this.acceleration);
-		// Find the noise values	
-		var noiseVector = getNoiseAtPosition(this.position.x, this.position.y, FRAMECOUNT*options.noiseRotation, options.noiseScale);
+		// Find the noise values
+		var noiseVector = getNoiseVictorAtPosition(this.position.x, this.position.y, FRAMECOUNT*options.noiseRotation, options.noiseScale);
 		// Apply exponent
 		noiseVector.y = noiseVector.y * noiseVector.y;
 		// Adjust to weighting
 		noiseVector.multiply(options.noiseVelocity);
-		this.velocity.add(options.noiseVector);
+		this.velocity.add(noiseVector);
 		this.position.add(this.velocity);
+	}
+
+	this.displayAsInk = function(options){
+		// Draw to the buffer
+		options.buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		this.drawSimpleLineToContext(options.buffer);
+
+		// Draw to the main canvas
+		options.context.lineCap = "round";
+		options.context.lineWidth = 1;
+		options.context.strokeStyle = this.getColourStringWithAlpha(options.alpha);
+		this.drawSimpleLineToContext(options.context);
+	}
+
+	this.drawSimpleLineToContext = function(context){
+		context.beginPath();
+		context.moveTo(this.position.x,this.position.y);
+		context.lineTo(this.previousPosition.x,this.previousPosition.y);
+		context.stroke();
+	}
+
+	this.cleanupAsInk = function(options){
+		if(this.position.y > options.bounds.bottom){
+			this.alive = false;
+		}
+		if(this.age <= 0){
+			// this.alive = false;
+		}
+		this.resetAcceleration();
 	}
 
 }

@@ -90,7 +90,8 @@ function animate() {
         ///======== DRAWING BEGINS =======///
         // drawInk
         var drawingObjects = {points:livePoints, context:ctx, buffer:bCtx};
-        drawToHeaderCanvas(drawingObjects);
+        // drawToHeaderCanvas(drawingObjects);
+        drawInk(drawingObjects);
 
         ///======== DRAWING ENDS =======///
 
@@ -246,11 +247,11 @@ function redraw(){
 	resetPoints();
 }
 
-function getNoiseAtPosition(x, y, z, scale){
-	return {
-		x: NOISE.perlin3(x*scale+NOISE_OFFSET, y*scale+NOISE_OFFSET, z),
-		y: NOISE.perlin3(x*scale, y*scale, z)
-	}
+function getNoiseVictorAtPosition(x, y, z, scale){
+	return new Victor(
+		NOISE.perlin3(x*scale+NOISE_OFFSET, y*scale+NOISE_OFFSET, z),
+		NOISE.perlin3(x*scale, y*scale, z)
+		);
 }
 
 ////
@@ -268,8 +269,7 @@ function addRepulsionForce(x, y){
 }
 
 function drawInk(objects){
-	var context = objects.context || ctx;
-	var buffer = objects.buffer || bCtx;
+
 	var points = objects.point || livePoints;
 
 	var physicsOptions = {
@@ -287,42 +287,25 @@ function drawInk(objects){
 		velocityDecay: 0.95
 	}
 
-	var bufferValue;
-	var friendsDrawn = 0;
+	var displayOptions = {
+		context: objects.context || ctx,
+		buffer: buffer = objects.buffer || bCtx,
+		alpha: 0.5
+	}
+
+	var cleaupOptions = {
+		bounds: {left:0, top:0, right:canvasWidth, bottom:canvasHeight}
+	}
 
 	var iPoint;
-
-	var noiseVector = new Victor();
 
 
 	for(var k = 0; k<points.length;k++){
 		iPoint = points[k];
 
 		iPoint.updatePhysicsAsInk(physicsOptions);
-
-		// Draw to the buffer
-		buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		drawSmudgePixelToContext(buffer, iPoint);
-
-		// Draw to the main canvas
-		context.lineCap = "round";
-
-		//
-		context.lineWidth = 1;//iPoint.randomSize;
-		context.strokeStyle = iPoint.getColourStringWithAlpha(0.5);
-		drawSmudgePixelToContext(context, iPoint);
-		// finish up
-
-		if(iPoint.position.y > canvasHeight){
-			iPoint.alive = false;
-		}
-		if(iPoint.age <= 0){
-			// iPoint.alive = false;
-		}
-
-		iPoint.resetAcceleration();
-
-		friendsDrawn++;
+		iPoint.displayAsInk(displayOptions);
+		iPoint.cleanupAsInk(cleaupOptions);
 	}
 }
 
@@ -418,15 +401,6 @@ function drawToHeaderCanvas(objects){
 	}
 
 }
-
-
-function drawSmudgePixelToContext(context, sp){
-	context.beginPath();
-	context.moveTo(sp.position.x,sp.position.y);
-	context.lineTo(sp.previousPosition.x,sp.previousPosition.y);
-	context.stroke();
-}
-
 
 function drawLogo(canvas){
 	canvas = canvas || ctx;
