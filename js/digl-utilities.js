@@ -1,5 +1,10 @@
 
 /* Utilities */
+function Digl(){};
+Digl.setInheritance = function(child, parent) {
+    child.prototype = Object.create(parent.prototype);
+    child.prototype.constructor = child;
+};
 
 function remap(value, low1, high1, low2, high2) {
     return low2 + (high2 - low2) * (value - low1) / (high1 - low1);

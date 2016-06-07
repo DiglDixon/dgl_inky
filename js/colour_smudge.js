@@ -24,7 +24,7 @@ $(document).ready(function(){
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
 	resetCanvasDimensions(2);
-	cSmudge = new Smudge({context:ctx, buffer:bCtx});
+	cSmudge = new InkSmudge({context:ctx, buffer:bCtx});
 	setTimeout(function(){
 		redraw();
 		startAnimating(FRAMERATE);
@@ -170,6 +170,16 @@ function storeMousePos(evt) {
     MOUSE_NORM_Y = canvasHeight/MOUSE_Y;
 }
 
+
+
+function Repulsion(x, y){
+	this.position = new Victor(x, y);
+	this.radius = 200;
+	this.radiusSquared = this.radius*this.radius;
+	this.inverse_radiusSquared = 1/this.radiusSquared;
+	this.inverse_radius = 1/this.radius;
+	this.force = 2;
+}
 
 document.onkeypress = function(evt) {
     evt = evt || window.event;
