@@ -8,7 +8,7 @@ function SmudgePoint(x, y, colourArray){
 	this.velocity = new Victor(0, 0);
 	this.acceleration = new Victor(0, 0);
 	this.randomSize = Math.random()*50;
-	this.age = Math.random();
+	this.age = 1;
 	this.alive = true;
 	this.seed = Math.floor(Math.random()*10000);
 }
@@ -45,11 +45,17 @@ SmudgePoint.prototype.drawSimpleLineToContext = function(context){
 }
 
 SmudgePoint.prototype.isOutOfBounds = function(bounds){
-	return (this.position.x<bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top);
+	console.log(bounds);
+	console.log(this.position);
+	console.log((this.position.x < bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top));
+	return (this.position.x < bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top);
+}
+
+SmudgePoint.prototype.kill = function(){
+	this.alive = false;
 }
 
 SmudgePoint.prototype.updatePhysics = function(options){
-	this.age -= options.ageDecayRate;
 	this.previousPosition.copy(this.position);
 	this.velocity.add(this.acceleration);
 	// Find the noise values
@@ -76,43 +82,53 @@ SmudgePoint.prototype.display = function(options){
 
 SmudgePoint.prototype.cleanup = function(options){
 	if(this.isOutOfBounds(options.bounds)){
-		this.alive = false;
-	}
-	if(this.age <= 0){
-		// this.alive = false;
+		this.kill();
 	}
 	this.resetAcceleration();
 }
 
-function InkSmudgePoint(x, y, colourArray){
-	SmudgePoint.call(this, x, y, colourArray)
-}
-Digl.setInheritance(InkSmudgePoint, SmudgePoint);
 
-InkSmudgePoint.prototype.updatePhysics = function(options){
+function BlackSmudgePoint(x, y, colourArray){
+	SmudgePoint.call(this, x, y, colourArray);
+}
+Digl.setInheritance(BlackSmudgePoint, SmudgePoint);
+
+BlackSmudgePoint.prototype.updatePhysics = function(options){
+	if(options.special)
+		console.log(this.age);
 	this.age -= options.ageDecayRate;
 	this.previousPosition.copy(this.position);
+	this.velocity.add(this.acceleration);
 	// Find the noise values
 	var noiseVector = getNoiseVictorAtPosition(this.position.x, this.position.y, {x:FRAMECOUNT*options.noiseRotation.x, y:FRAMECOUNT*options.noiseRotation.x}, options.noiseScale);
 	// Apply exponent
 	noiseVector.y = noiseVector.y * noiseVector.y;
 	// Adjust to weighting
 	noiseVector.multiply(options.noiseVelocity);
-	noiseVector.add(options.passiveMotion);
-	this.position.add(noiseVector);
+	this.velocity.add(noiseVector);
+	this.position.add(this.velocity);
 }
 
-InkSmudgePoint.prototype.display = function(options){
+BlackSmudgePoint.prototype.display = function(options){
+	// Draw to the buffer
+	// options.buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
+	// this.drawSimpleLineToContext(options.buffer);
+
 	// Draw to the main canvas
 	options.context.lineCap = "round";
-	options.context.lineWidth = 10;
+	options.context.lineWidth = 3 * this.age;
 	options.context.strokeStyle = this.adoptedColourString;
 	this.drawSimpleLineToContext(options.context);
 }
 
-InkSmudgePoint.cleanup = function(options){
+BlackSmudgePoint.prototype.cleanup = function(options){
 	if(this.isOutOfBounds(options.bounds)){
-		this.alive = false;
+		this.kill();
 	}
-	this.resetVelocity();
+	if(this.age <= 0){
+		this.kill();
+	}
+	this.resetAcceleration();
 }
+
+

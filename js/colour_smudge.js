@@ -24,7 +24,7 @@ $(document).ready(function(){
 	bCtx = bufferCanvas[0].getContext("2d");
 	logo = $(".logo")[0];
 	resetCanvasDimensions(2);
-	cSmudge = new InkSmudge({context:ctx, buffer:bCtx});
+	cSmudge = new BlackSmudge({context:ctx, buffer:bCtx});
 	setTimeout(function(){
 		redraw();
 		startAnimating(FRAMERATE);
