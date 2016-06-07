@@ -1,7 +1,8 @@
 
-
-function SmudgePixel(x, y, colourArray){
+// Default style is an inky thing.
+function SmudgePoint(x, y, colourArray){
 	this.adoptedColour = colourArray;
+	this.adoptedColourString = "rgba("+colourArray[0]+", "+colourArray[1]+", "+colourArray[2]+", "+1+")";
 	this.position = new Victor(x * inverse_canvasScale, y * inverse_canvasScale);
 	this.previousPosition = this.position.clone();
 	this.velocity = new Victor(0, 0);
@@ -9,7 +10,6 @@ function SmudgePixel(x, y, colourArray){
 	this.randomSize = Math.random()*50;
 	this.age = Math.random();
 	this.alive = true;
-	this.a = 1;
 	this.seed = Math.floor(Math.random()*10000);
 
 	this.addRepulsion = function(repulsion){
@@ -30,15 +30,12 @@ function SmudgePixel(x, y, colourArray){
 		this.acceleration.y = 0;
 	}
 
-	this.getColourStringWithAlpha = function(alpha){
-		return "rgba("+this.adoptedColour[0]+", "+this.adoptedColour[1]+", "+this.adoptedColour[2]+", "+alpha+")";
+	this.resetVelocity = function(){
+		this.velocity.x = 0;
+		this.velocity.y = 0;
 	}
 
-	this.updatePhysics = function(){
-		// 
-	}
-
-	this.updatePhysicsAsInk = function(options){
+	this.updatePhysics = function(options){
 		this.age -= options.ageDecayRate;
 		this.previousPosition.copy(this.position);
 		this.velocity.add(this.acceleration);
@@ -52,15 +49,15 @@ function SmudgePixel(x, y, colourArray){
 		this.position.add(this.velocity);
 	}
 
-	this.displayAsInk = function(options){
+	this.display = function(options){
 		// Draw to the buffer
-		options.buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
-		this.drawSimpleLineToContext(options.buffer);
+		// options.buffer.strokeStyle = "rgba(0, 0, 0, 0.02)";
+		// this.drawSimpleLineToContext(options.buffer);
 
 		// Draw to the main canvas
 		options.context.lineCap = "round";
 		options.context.lineWidth = 1;
-		options.context.strokeStyle = this.getColourStringWithAlpha(options.alpha);
+		options.context.strokeStyle = this.adoptedColourString;
 		this.drawSimpleLineToContext(options.context);
 	}
 
@@ -71,14 +68,18 @@ function SmudgePixel(x, y, colourArray){
 		context.stroke();
 	}
 
-	this.cleanupAsInk = function(options){
-		if(this.position.y > options.bounds.bottom){
+	this.cleanup = function(options){
+		if(this.isOutOfBounds(options.bounds)){
 			this.alive = false;
 		}
 		if(this.age <= 0){
 			// this.alive = false;
 		}
 		this.resetAcceleration();
+	}
+
+	this.isOutOfBounds = function(bounds){
+		return (this.position.x<bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top);
 	}
 
 }
