@@ -4,10 +4,10 @@ function Smudge(options){
 	this.points = [];
 
 	this.physicsOptions = {
-		noiseScale: 0.003, // smaller: tighter
-		noiseRotation: 0.005,
+		noiseScale: {x:0.003, y:0.053}, // smaller: tighter point correlation
+		noiseRotation: {x: 0.005, y: 0.005}, // ~~ smaller: larger waves
+		noiseVelocity: new Victor(0.02, 0.09),
 		ageDecayRate: 0.01,
-		noiseVelocity: new Victor(0.04, 0.99),
 		horzPow: 1,
 		vertPow: 2,
 		randomShiftHorz: 0,
@@ -50,7 +50,6 @@ function Smudge(options){
 			iPoint.cleanup(this.cleaupOptions);
 		}
 	}
-
 
 	this.addRepulsionForce = function(x, y){
 		var repulsion = new Repulsion(x, y);

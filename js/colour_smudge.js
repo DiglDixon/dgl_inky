@@ -134,10 +134,12 @@ function redraw(){
 	resetPoints();
 }
 
-function getNoiseVictorAtPosition(x, y, z, scale){
+
+
+function getNoiseVictorAtPosition(x, y, time, scale){
 	return new Victor(
-		NOISE.perlin3(x*scale+NOISE_OFFSET, y*scale+NOISE_OFFSET, z),
-		NOISE.perlin3(x*scale, y*scale, z)
+		NOISE.perlin3(x*scale.x+NOISE_OFFSET, y*scale.x+NOISE_OFFSET, time.x),
+		NOISE.perlin3(x*scale.y, y*scale.y, time.y)
 		);
 }
 

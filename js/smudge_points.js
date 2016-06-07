@@ -35,12 +35,25 @@ function SmudgePoint(x, y, colourArray){
 		this.velocity.y = 0;
 	}
 
+	this.drawSimpleLineToContext = function(context){
+		context.beginPath();
+		context.moveTo(this.position.x,this.position.y);
+		context.lineTo(this.previousPosition.x,this.previousPosition.y);
+		context.stroke();
+	}
+
+	this.isOutOfBounds = function(bounds){
+		return (this.position.x<bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top);
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////////////	
+
 	this.updatePhysics = function(options){
 		this.age -= options.ageDecayRate;
 		this.previousPosition.copy(this.position);
 		this.velocity.add(this.acceleration);
 		// Find the noise values
-		var noiseVector = getNoiseVictorAtPosition(this.position.x, this.position.y, FRAMECOUNT*options.noiseRotation, options.noiseScale);
+		var noiseVector = getNoiseVictorAtPosition(this.position.x, this.position.y, {x:FRAMECOUNT*options.noiseRotation.x, y:FRAMECOUNT*options.noiseRotation.x}, options.noiseScale);
 		// Apply exponent
 		noiseVector.y = noiseVector.y * noiseVector.y;
 		// Adjust to weighting
@@ -61,13 +74,6 @@ function SmudgePoint(x, y, colourArray){
 		this.drawSimpleLineToContext(options.context);
 	}
 
-	this.drawSimpleLineToContext = function(context){
-		context.beginPath();
-		context.moveTo(this.position.x,this.position.y);
-		context.lineTo(this.previousPosition.x,this.previousPosition.y);
-		context.stroke();
-	}
-
 	this.cleanup = function(options){
 		if(this.isOutOfBounds(options.bounds)){
 			this.alive = false;
@@ -78,9 +84,7 @@ function SmudgePoint(x, y, colourArray){
 		this.resetAcceleration();
 	}
 
-	this.isOutOfBounds = function(bounds){
-		return (this.position.x<bounds.left || this.position.x > bounds.right || this.position.y < bounds.top || this.position.y > bounds.top);
-	}
+	//////////////////////////////////////////////////////////////////////////////////////////
 
 }
 
